@@ -1,0 +1,41 @@
+{
+  "model_version_trained": "v3.1",
+  "training_snapshot": "2026-07-15",
+  "preprocessing": {
+    "resize_px": 256,
+    "color_space": "RGB"
+  },
+  "features": {
+    "blur_score": {
+      "mean": 0.72,
+      "std": 0.08,
+      "null_rate": 0.004
+    },
+    "brightness": {
+      "mean": 0.55,
+      "std": 0.1,
+      "null_rate": 0.004
+    },
+    "saturation": {
+      "mean": 0.48,
+      "std": 0.09,
+      "null_rate": 0.0
+    }
+  },
+  "label_space": [
+    "halloumi",
+    "gouda",
+    "comte",
+    "brie",
+    "manchego",
+    "pecorino",
+    "gruyere",
+    "cheddar",
+    "roquefort",
+    "feta"
+  ],
+  "offline_metrics": {
+    "accuracy": 0.93,
+    "macro_f1": 0.91
+  }
+}
