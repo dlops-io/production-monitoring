@@ -2,8 +2,9 @@
 
     python -m monitor.cli check                       # today's report
     python -m monitor.cli check --as-of 2026-09-10    # what you would have seen that day
-    python -m monitor.cli segments --by image_source  # accuracy per slice
-    python -m monitor.cli replay                     # when would each probe have fired?
+    python -m monitor.cli segments --by image_source  # accuracy per slice (LOCALIZE)
+    python -m monitor.cli confidence --by region      # a performance signal with no labels
+    python -m monitor.cli replay                      # when would each probe have fired?
 
 Add --solution to any command to run answers/probes_solution.py instead of your own probes.
 """
@@ -75,28 +76,35 @@ def cmd_check(args) -> None:
 
 
 def cmd_segments(args) -> None:
-    df, profile = load_log(), load_profile()
+    df = load_log()
     as_of = args.as_of or df["ts"].max().to_pydatetime()
     labeled = labels_known_by(window(df, as_of, args.window), as_of)
 
     print(f"\naccuracy by {args.by} — last {args.window}d as of {as_of:%Y-%m-%d}")
-    print(f"overall: {accuracy(labeled):.1%}  (n={len(labeled):,})\n")
+    overall = accuracy(labeled)
+    if overall is None:
+        print("  no confirmed labels had arrived by this date — pick a later --as-of\n")
+        return
+    print(f"overall: {overall:.1%}  (n={len(labeled):,})\n")
     table = segment_table(labeled, args.by)
     if table.empty:
-        print("  not enough labelled events in this window")
+        print("  not enough labelled events in this window (fewer than 40 per slice)\n")
         return
     for _, row in table.iterrows():
         bar = "█" * int(row["accuracy"] * 40)
-        print(f"  {str(row[args.by]):<18} n={int(row['n']):>5}  {row['accuracy']:>6.1%}  {bar}")
+        print(f"  {row[args.by]!s:<18} n={int(row['n']):>5}  {row['accuracy']:>6.1%}  {bar}")
     print()
 
 
 def cmd_confidence(args) -> None:
     """Weekly mean confidence per segment — a performance signal that needs no labels.
 
-    This is the idea behind NannyML's CBPE, stripped to its simplest form: when a model
-    starts meeting inputs it was never trained on, its own confidence sags *before* any
-    ground truth arrives to prove it wrong.
+    The idea behind confidence-based performance estimation (NannyML's CBPE is the
+    best-known implementation), stripped to its simplest form: when a model starts meeting
+    inputs it was never trained on, its own confidence sags *before* any ground truth
+    arrives to prove it wrong. The lecture's edge-camera incident called this "a cheap
+    secondary signal" — cheap because it needs no labels, secondary because it cannot
+    prove anything on its own.
     """
     df = load_log()
     df = df[df["ts"] > df["ts"].max() - timedelta(days=args.days)]
@@ -121,9 +129,10 @@ def cmd_confidence(args) -> None:
 def cmd_replay(args) -> None:
     """Walk the log day by day and record when each probe would first have alerted.
 
-    Requiring `--consecutive` windows before alerting is the multiple-testing discipline
-    from the lecture: running ~15 tests a day guarantees the occasional false positive, so
-    a single significant result is a reason to look, not a reason to page anyone.
+    Requiring `--consecutive` windows before alerting is the lecture's "alerts need
+    explicit clocks and sustained conditions": running ~15 tests a day guarantees the
+    occasional false positive, so a single significant result is a reason to look, not a
+    reason to page anyone.
     """
     df, profile = load_log(), load_profile()
     probes = get_probes(args.solution)
@@ -153,7 +162,7 @@ def cmd_replay(args) -> None:
     print(f"  {'first alert':<14} {'days early':>10}  probe / subject")
     print(f"  {'-'*14} {'-'*10}  {'-'*44}")
     for (probe, subject), when in sorted(first_alert.items(), key=lambda kv: kv[1]):
-        early = (INCIDENT_DAY - when).days
+        early = (INCIDENT_DAY.date() - when.date()).days   # calendar days, not floor(hours/24)
         print(f"  {when:%Y-%m-%d}     {early:>7}d   {probe} / {subject}")
     print(f"\n  the humans noticed on {INCIDENT_DAY:%Y-%m-%d}.\n")
 

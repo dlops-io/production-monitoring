@@ -1,0 +1,8 @@
+# Keep the build context small: none of this belongs in the image.
+.git
+.venv
+__pycache__
+*.pyc
+.pytest_cache
+.DS_Store
+.ipynb_checkpoints

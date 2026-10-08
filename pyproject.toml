@@ -1,10 +1,19 @@
 [project]
 name = "production-monitoring"
 version = "0.1.0"
-description = "AC215 Lecture 16 tutorial — monitoring a model that is already in production"
+description = "AC215 Lecture 17 tutorial — monitoring a model that is already in production"
 requires-python = ">=3.11"
 dependencies = [
     "pandas>=2.2",
     "scipy>=1.13",
     "numpy>=1.26",
 ]
+
+[dependency-groups]
+dev = [
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
