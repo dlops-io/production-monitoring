@@ -7,7 +7,7 @@ reports all-clear on a system that is quietly broken.
 Helpers you already have (from monitor.core, import them as you need them):
 
     ks_statistic(reference, current) -> (D, p)   two-sample KS test
-    ks_critical(n, m, alpha=0.01)    -> D_crit    the threshold from the lecture slide
+    ks_critical(n, m, alpha=0.01)    -> D_crit    the largest D chance alone would produce
     psi(reference, current)          -> float     categorical drift, >0.25 is a major shift
     accuracy(frame)                  -> float     share of predictions matching confirmed_label
     segment_table(frame, by)         -> DataFrame accuracy and n per value of `by`
@@ -70,7 +70,7 @@ def check_feature_drift(
         column like `region` needs the categorical test.
       - Use `LAYER[col]` for the finding's layer.
 
-      Watch out for two things the lecture warned about:
+      Watch out for two things:
         - With ~1000 events a window, statistical significance is cheap. D=0.03 will clear
           D_crit and mean nothing anyone can act on. Consider a floor on D as well.
         - `confidence` is in CONTINUOUS on purpose. It is the model's *output*, not its
@@ -84,9 +84,10 @@ def check_serving_parity(win: pd.DataFrame, profile: dict) -> list[Finding]:
     """Does production actually match how the model was trained?
 
     Not a drift test. Drift is the world changing; this is *us* changing something and the
-    model not being told. Roughly 40% of production model issues are training-serving skew
-    (lecture: Uber / Michelangelo), and no distribution test on the input features will
-    find it, because the input features are fine.
+    model not being told — "training-serving skew". It is one of the most common causes of
+    production model failures, and no distribution test on the input features will find
+    it, because the input features are fine. Only a comparison against what was true at
+    training time can.
 
     TODO (Step 5)
       - Compare `win["resize_px"]` against `profile["preprocessing"]["resize_px"]`. Any

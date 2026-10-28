@@ -41,15 +41,20 @@ LAYER = {
 }
 
 # The "golden window": the first 30 days of production, which we treat as the reference
-# distribution. Lecture 16, "The KS Test in Production": store a reference distribution —
-# either the training set, or a trailing golden window of stable production traffic.
+# distribution for drift. A drift test always needs a stored reference — either the
+# training set, or a window of production traffic from when the system was known healthy.
 GOLDEN_START = datetime(2026, 8, 5)
 GOLDEN_END = datetime(2026, 9, 4)     # exclusive
 
 
 @dataclass
 class Finding:
-    """One thing a probe noticed. `layer` maps to the three layers from the lecture."""
+    """One thing a probe noticed.
+
+    `layer` says which part of the system the finding is about: the inputs ("Data
+    Quality"), the model's behaviour ("Model Performance"), or the service around it
+    ("System Health"). The lecture's boundary table calls these Input, Model and Serving.
+    """
 
     probe: str
     layer: str            # "Data Quality" | "Model Performance" | "System Health"
@@ -66,15 +71,19 @@ class Finding:
 def ks_statistic(reference: pd.Series, current: pd.Series) -> tuple[float, float]:
     """Two-sample Kolmogorov-Smirnov test: returns (D, p_value).
 
-    D = sup_x |F1(x) - F2(x)| — the largest vertical gap between the two empirical CDFs,
-    exactly as on the lecture slide. scipy computes it; you decide what to do about it.
+    D = sup_x |F1(x) - F2(x)| — the largest vertical gap between the two empirical CDFs.
+    D is 0 when the two samples come from the same distribution and 1 when they do not
+    overlap at all. scipy computes it; you decide what to do about it.
     """
     d, p = stats.ks_2samp(reference.dropna(), current.dropna())
     return float(d), float(p)
 
 
 def ks_critical(n: int, m: int, alpha: float = 0.01) -> float:
-    """D_critical ≈ c(α)·√((n+m)/(n·m)). If D exceeds this, the samples differ."""
+    """D_critical ≈ c(α)·√((n+m)/(n·m)): the largest D you'd expect from two samples of
+    the *same* distribution, at significance α. If D exceeds it, the samples differ.
+    Notice it shrinks as n and m grow — with enough data, any difference is "significant".
+    """
     c = {0.10: 1.22, 0.05: 1.36, 0.01: 1.63}[alpha]
     return float(c * np.sqrt((n + m) / (n * m)))
 

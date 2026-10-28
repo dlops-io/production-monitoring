@@ -12,12 +12,12 @@ Run from the repo root:  python answers/make_production_log.py
 import csv
 import json
 import random
+import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 SEED = 215
 ROOT = Path(__file__).resolve().parent.parent
-OUT = ROOT / "data" / "production_log.csv"
 
 DAY_ONE = date(2026, 8, 5)
 N_DAYS = 90
@@ -87,7 +87,9 @@ def nordics_share(day: int) -> float:
     return NORDICS_MAX_SHARE * ramp
 
 
-def main() -> None:
+def main(root: Path = ROOT) -> None:
+    """Write data/production_log.csv and reference/training_profile.json under `root`."""
+    out = root / "data" / "production_log.csv"
     rng = random.Random(SEED)
     rows = []
     last_ts = datetime.combine(DAY_ONE + timedelta(days=N_DAYS - 1), datetime.min.time())
@@ -186,14 +188,14 @@ def main() -> None:
             )
 
     rows.sort(key=lambda r: r["ts"])
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    with OUT.open("w", newline="") as f:
+    out.parent.mkdir(parents=True, exist_ok=True)
+    with out.open("w", newline="") as f:
         w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
         w.writeheader()
         w.writerows(rows)
 
     labeled = sum(1 for r in rows if r["confirmed_label"])
-    print(f"wrote {OUT.relative_to(ROOT)}  ({len(rows):,} events, {labeled:,} confirmed labels)")
+    print(f"wrote {out.relative_to(root)}  ({len(rows):,} events, {labeled:,} confirmed labels)")
 
     # the training profile the parity probe compares against
     profile = {
@@ -208,11 +210,11 @@ def main() -> None:
         "label_space": TRAINED_LABELS,
         "offline_metrics": {"accuracy": 0.93, "macro_f1": 0.91},
     }
-    prof_path = ROOT / "reference" / "training_profile.json"
+    prof_path = root / "reference" / "training_profile.json"
     prof_path.parent.mkdir(parents=True, exist_ok=True)
     prof_path.write_text(json.dumps(profile, indent=2) + "\n")
-    print(f"wrote {prof_path.relative_to(ROOT)}")
+    print(f"wrote {prof_path.relative_to(root)}")
 
 
 if __name__ == "__main__":
-    main()
+    main(Path(sys.argv[1]) if len(sys.argv) > 1 else ROOT)

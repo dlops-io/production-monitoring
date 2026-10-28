@@ -11,8 +11,8 @@ you have something firing.
 You can run against it without reading it, which is the better way to get unstuck:
 
 ```bash
-uv run python -m monitor.cli check --solution
-uv run python -m monitor.cli replay --solution
+python -m monitor.cli check --solution
+python -m monitor.cli replay --solution
 ```
 
 If your probe finds something this one misses, you have not made a mistake. Read the
@@ -23,7 +23,7 @@ If your probe finds something this one misses, you have not made a mistake. Read
 The generator that produced `data/production_log.csv`. It names all three planted failures,
 their start dates, and their exact magnitudes.
 
-**Read this at Step 9, not before.** It is the answer key to the whole incident, and the
+**Read this at Step 8, not before.** It is the answer key to the whole incident, and the
 tutorial only works if you find the failures in the data first. Once you get there it is the
 best thing in the repo — every effect you measured, written as the four or five lines of code
 that caused it.
@@ -31,5 +31,8 @@ that caused it.
 To regenerate the data (deterministic, `SEED = 215`, so you will get a byte-identical CSV):
 
 ```bash
-uv run python answers/make_production_log.py
+python answers/make_production_log.py
 ```
+
+`tests/test_generator.py` regenerates it into a temporary folder and checks that it matches
+the committed files byte for byte, so nobody can drift the incident by accident.
