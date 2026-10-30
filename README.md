@@ -197,6 +197,12 @@ pred_label, confidence, latency_ms,          ← what the model did
 label_ts, confirmed_label                    ← ground truth, when it eventually arrives
 ```
 
+Each row records one production prediction: when it occurred, which model version ran,
+where the input came from, input image measurements and preprocessing settings, the
+predicted class, confidence, and latency. When ground truth becomes available, the
+confirmed label and its arrival time are recorded. These fields support monitoring of
+data quality, feature drift, preprocessing consistency, and predictive performance.
+
 This is the lecture's `prediction_event` and `outcome_event` in one table, joined on
 `event_id`. Notice the last two columns: not just *what* the true label was, but *when* it
 arrived.
