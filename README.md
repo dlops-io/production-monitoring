@@ -1,6 +1,6 @@
-# Production Monitoring — The Incident Nobody Noticed
+# Production Monitoring - The Incident Nobody Noticed
 
-**AC215 · Lecture 17 — Evaluating and Monitoring ML Systems in Production**
+**AC215 · Lecture 17 - Evaluating and Monitoring ML Systems in Production**
 
 A cheese-identification model has been serving `formaggio.me` for three months. It passed
 every offline test. It is now getting a third of its predictions wrong, and nobody knows
