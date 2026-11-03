@@ -397,7 +397,7 @@ Serving parity is not a drift test and the distinction gives a great deal of ins
 >    in units of the training std.
 >
 > **🤔 Predict before you run:** you already ran a drift test over these same features in
-> Step 4. Do you expect this probe to find anything *new*? Commit to yes or no.
+> Step 4. Do you expect this probe to find anything *new*? Commit to a yes or no answer.
 >
 > **Then run:**
 >
