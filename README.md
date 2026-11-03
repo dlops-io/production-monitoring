@@ -294,9 +294,7 @@ prediction for every one of those rows.
 
 > [!TIP]
 > **Warn or critical?** One rule, and it is not statistical: *critical is what you would wake
-> a human for at 2am.* If you wouldn't get out of bed, it's a warn. The lecture's DECIDE step
-> is exactly this — pre-commit the threshold, the action and the owner — and teams that skip
-> it end up with everything critical, which is identical to nothing critical.
+> a human for at 2am.* If you wouldn't get out of bed, it's a warn.
 
 **🤔 Before moving on:** is a 4.8% null rate on one feature enough to move accuracy by 24
 points? Do the arithmetic in your head. It is one finding, not the answer.
@@ -372,8 +370,8 @@ Five alarms. Read them carefully, because three of them are traps.
 > `p=2.3e-218` **is not 218 times more urgent than** `p=0.04`**.** With ~950 events per window
 > against a 4,400-event reference, `D_crit` is 0.059 — so a 6% distributional wobble is
 > "significant". Significance gets cheaper the more traffic you have, which is why your
-> probe wants a floor on `D` as well as the critical value. And it is why the lecture's
-> alert rules all said *"for 10 minutes"* or *"for 30 minutes"*: run 15 tests a day and you
+> probe wants a floor on `D` as well as the critical value. Alert rules should also require
+> sustained conditions, such as *"for 10 minutes"* or *"for 30 minutes"*: run 15 tests a day and you
 > get a false positive most weeks by chance. `replay` in Step 8 requires two consecutive
 > days for exactly this reason.
 
@@ -431,12 +429,10 @@ and the reason feature stores exist — one feature definition, computed once, u
 the training and the serving path, so the two cannot disagree.
 
 > [!TIP]
-> **Every value passed its contract.** Remember the lecture's point about data validation:
-> every field in the fraud model's batch was present and in range, and the system was still
-> broken, because the failure lived in what the values *meant*. Same here. `resize_px=224` is
-> a perfectly valid integer. A schema check would wave it through. Only a check against
-> *what the model expects* catches it — which is the lecture's line about the edge probes:
-> **no probe substitutes for another.**
+> **Valid values can still be wrong for the model.** `resize_px=224` is a perfectly valid
+> integer. A basic schema check would wave it through, but the model was trained at 256px.
+> Only a check against *what the model expects* catches this mismatch.
+> **No probe substitutes for another.**
 
 > [!TIP]
 > **Find the day it started.** `--as-of` re-runs any check as it would have looked on a past
@@ -452,7 +448,7 @@ the training and the serving path, so the two cannot disagree.
 > drift — and it means someone's change is sitting in a commit you can read.
 >
 > The share is worth noticing too: 32% of traffic, climbing to 100%. Your probe caught this
-> *during* the rollout — which is the whole argument for a canary release from the lecture:
+> *during* the rollout — which is the whole argument for a canary release:
 > a small real cohort, pre-committed stop rules, fast rollback. But only because it alerts
 > on *any* nonzero share. A threshold like "fire above 50% of traffic" would have politely
 > waited for the rollout to finish before mentioning it.
@@ -471,8 +467,7 @@ the training and the serving path, so the two cannot disagree.
 >
 > **File:** `monitor/probes.py` · **Function:** `check_performance(labeled, profile)`
 >
-> **The job:** overall accuracy first, then per segment. This is the lecture's LOCALIZE step —
-> geography, then merchant age — done in code.
+> **The job:** overall accuracy first, then per segment.
 >
 > 1. `accuracy(labeled)` against `profile["offline_metrics"]["accuracy"]`.
 > 2. Then again per segment: `segment_table(labeled, by)` for each `by` in `SEGMENTS`, firing
@@ -586,17 +581,16 @@ it), stripped to about fifteen lines of pandas: use the model's own confidence d
 as an early proxy for performance instead of waiting for ground truth.
 
 > [!TIP]
-> **A cheap secondary signal.** In the edge-camera incident, "page on confidence drift" was
-> option C — and the lecture's verdict was that it *can be a cheap secondary signal but
-> cannot prove anything on its own.* Same verdict here. Confidence is a proxy, and a badly
+> **A cheap secondary signal.** Confidence drift can prompt an investigation, but cannot
+> establish a performance drop on its own. Confidence is a proxy, and a badly
 > calibrated model gives you a confident, wrong proxy. It is a trigger to investigate, never
 > a number to report. The defensible use is exactly what you just did: compare segments
 > against each other at the same moment, where miscalibration is at least a shared bias.
 
 ## 8. Replay: how early could you have known?
 
-The payoff — and the lecture's VERIFY step turned around: not "did the fix work?" but "would
-the monitor have worked?" Walk all 90 days through your probes and record when each would
+The payoff: would the monitor have detected these problems? Walk all 90 days through
+your probes and record when each would
 first have alerted, requiring two consecutive days before it counts, so a single lucky
 p-value doesn't page anyone.
 
@@ -704,9 +698,9 @@ That works because the system logs the right things in the first place. Copy tha
 
    threshold, the action, the owner and the scope — that is DECIDE.
 
-The lecture drew two paths. This repo has both, in miniature:
+Monitoring needs both a fast response path and a delayed evaluation path. This repo has both, in miniature:
 
-| Path | In the lecture | In this repo | GCP | AWS |
+| Path | Workflow | In this repo | GCP | AWS |
 |---|---|---|---|---|
 | **Fast** — detect and contain | metrics → alert → rollback, in minutes | `data_quality`, `feature_drift`, `serving_parity`, `confidence` | Cloud Logging → BigQuery; Cloud Run Job + Cloud Scheduler; Cloud Monitoring alert policy | CloudWatch Logs → S3 + Athena; Lambda + EventBridge; CloudWatch Alarm + SNS |
 | **Delayed** — establish truth | mature outcomes → warehouse join → release evidence, in days | `labels_known_by` + `check_performance` + `segments` | BigQuery scheduled query | Athena + Step Functions |
@@ -730,8 +724,8 @@ or recomputes from raw inputs, and that recomputation is itself a common skew bu
 segmented by variant, or you average the champion and the challenger together and learn
 nothing about either.
 - **Labels are correct.** User-confirmed labels are noisy and self-selecting: users who
-bother to correct the model are not a random sample of users. This is the lecture's
-feedback path — *what becomes future truth?* — and it needs provenance.
+bother to correct the model are not a random sample of users. The feedback path needs
+provenance: record where labels came from before treating them as ground truth.
 - **Retraining is out of scope.** A retraining policy — a threshold sustained over
 consecutive windows, a champion/challenger validation before promotion — is the natural
 next step once your probes are trustworthy.

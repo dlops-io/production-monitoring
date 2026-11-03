@@ -1,7 +1,7 @@
 [project]
 name = "production-monitoring"
 version = "0.1.0"
-description = "AC215 Lecture 17 tutorial — monitoring a model that is already in production"
+description = "AC215 tutorial — monitoring a model that is already in production"
 requires-python = ">=3.11"
 dependencies = [
     "pandas>=2.2",

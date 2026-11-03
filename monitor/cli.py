@@ -102,8 +102,8 @@ def cmd_confidence(args) -> None:
     The idea behind confidence-based performance estimation (NannyML's CBPE is the
     best-known implementation), stripped to its simplest form: when a model starts meeting
     inputs it was never trained on, its own confidence sags *before* any ground truth
-    arrives to prove it wrong. The lecture's edge-camera incident called this "a cheap
-    secondary signal" — cheap because it needs no labels, secondary because it cannot
+    arrives to prove it wrong. This is a cheap secondary signal — cheap because it
+    needs no labels, secondary because it cannot
     prove anything on its own.
     """
     df = load_log()
@@ -129,8 +129,8 @@ def cmd_confidence(args) -> None:
 def cmd_replay(args) -> None:
     """Walk the log day by day and record when each probe would first have alerted.
 
-    Requiring `--consecutive` windows before alerting is the lecture's "alerts need
-    explicit clocks and sustained conditions": running ~15 tests a day guarantees the
+    Requiring `--consecutive` windows before alerting ensures alerts use
+    sustained conditions: running ~15 tests a day guarantees the
     occasional false positive, so a single significant result is a reason to look, not a
     reason to page anyone.
     """
