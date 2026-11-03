@@ -387,14 +387,13 @@ Serving parity is not a drift test and the distinction gives a great deal of ins
 >
 > **File:** `monitor/probes.py` · **Function:** `check_serving_parity(win, profile)`
 >
-> **The job:** two comparisons, both against `reference/training_profile.json` rather than
-> against any window of production.
+> **The job:** we'll be making two comparisons, both against `reference/training_profile.json` rather than
+> against any specific window of production.
 >
 > 1. `win["resize_px"]` versus `profile["preprocessing"]["resize_px"]`. Any traffic served at
->
 >    a size the model wasn't trained at is a bug — `critical` even at small volume.
-> 2. Each feature's mean in `win` versus the training mean in `profile["features"]`, measured
 >
+> 2. Each feature's mean in `win` versus the training mean in `profile["features"]`, measured
 >    in units of the training std.
 >
 > **🤔 Predict before you run:** you already ran a drift test over these same features in
@@ -584,7 +583,7 @@ as an early proxy for performance instead of waiting for ground truth.
 > **A cheap secondary signal.** Confidence drift can prompt an investigation, but cannot
 > establish a performance drop on its own. Confidence is a proxy, and a badly
 > calibrated model gives you a confident, wrong proxy. It is a trigger to investigate, never
-> a number to report. The best way to use confidence is exactly what you just did: compare segments
+> a number to report. The best way to use confidenceis exactly what you just did: compare segments
 > against each other at the same moment, where miscalibration is at least a shared bias.
 
 ## 8. Replay: how early could you have known?
