@@ -211,14 +211,14 @@ stale.
 >
 > For example, when replaying September, a label that arrived in October must be excluded—even if it belongs to a September prediction. Including it would make the monitor appear to detect a problem earlier than it could have.
 
-Two reference points, for two different questions:
+We have two reference points for two different questions:
 
 | Reference | Where it comes from | Answers |
 |---|---|---|
-| **Golden window** | first 30 days of the log (`golden_window()`) | "has the world changed since we were healthy?" |
+| **Golden window** | first 30 days of the log (`golden_window()`) | "has our world changed since we were healthy?" |
 | **Training profile** | `reference/training_profile.json` | "does production match what we trained on?" |
 
-Those are not the same question, and Step 5 is where the difference bites.
+Those are not the same question, and Step 5 is where we clarify the difference.
 
 **Before Step 3 — open** `monitor/core.py` **and skim four things.** You never edit this file, but
 every probe you're about to write is built out of it, so five minutes here saves you twenty
@@ -239,7 +239,7 @@ pytest
 
 All of it passes right now. The tests check the code you were *given* and the contract your
 probes must keep (return a list of `Finding`s with a valid severity). They do not check your
-thresholds — those are yours to defend.
+thresholds — those are yours to work out.
 
 ## 3. Probe 1 — Data quality
 
@@ -254,9 +254,8 @@ thresholds — those are yours to defend.
 > against the `null_rate` the training profile recorded, and return a `Finding` when it is
 > meaningfully higher. The full TODO is in the docstring in the file — read that, not this.
 >
-> **The two decisions that *are* the exercise:** what counts as "meaningfully higher", and
-> when is it `warn` versus `critical`. There is no single right answer and the reference
-> solution is not the only defensible one.
+> **The two decisions that *make or break* the exercise:** what counts as "meaningfully higher", and
+> when is it `warn` versus `critical`. There is no single right answer 
 >
 > **🤔 Predict before you run:** three features, one week of traffic. How many findings do
 > you expect? Write the number down.
@@ -269,7 +268,7 @@ thresholds — those are yours to defend.
 > ```
 >
 > You are done with this step when the report contains exactly one finding and the contract
-> tests pass. Then open the toggle below and compare.
+> tests pass. Look below and compare.
 
 **▶ What you should see** (open after your probe fires)
 
@@ -282,7 +281,7 @@ features that were *already* null in training. If you got none, it's too loose, 
 comparing against the wrong number.
 
 One feature is going null twelve times more often than it did in training. Nothing has
-errored. No exception was ever raised, no request failed, and the model happily produced a
+thrown an error. No exception was ever raised, no request failed, and the model happily produced a
 prediction for every one of those rows.
 
 > [!TIP]
@@ -293,8 +292,8 @@ prediction for every one of those rows.
 > feature. Thresholds relative to a recorded baseline are why the training profile exists.
 
 > [!TIP]
-> **Warn or critical?** One rule, and it is not statistical: *critical is what you would wake
-> a human for at 2am.* If you wouldn't get out of bed, it's a warn.
+> **Warn or critical?** One rule, and it is intuitive and not deterministic: *critical is what you would 
+> wake a sleeping human for at 2am.* If you wouldn't get out of bed, it's a warn.
 
 **🤔 Before moving on:** is a 4.8% null rate on one feature enough to move accuracy by 24
 points? Do the arithmetic in your head. It is one finding, not the answer.
@@ -363,8 +362,8 @@ Five alarms. Read them carefully, because three of them are traps.
 > `confidence` **is the model's output, not its input.** It is in `CONTINUOUS` deliberately.
 > When input features look stable and the output distribution moves, the world hasn't
 > changed shape — the model's *relationship* to the world has. That is concept drift, and
-> this is the cheapest way to see it: you already log confidence, and it needs no ground
-> truth at all. Hold that thought until Step 7.
+> the cheapest way to understand it is when you already log confidence and it doesn't need ground
+> truth. Hold that thought until Step 7.
 
 > [!TIP]
 > `p=2.3e-218` **is not 218 times more urgent than** `p=0.04`**.** With ~950 events per window
@@ -381,7 +380,7 @@ accuracy drop. Two of these five alarms have nothing to do with it.
 
 ## 5. Probe 3 — Serving parity
 
-This one is not a drift test, and the distinction is the most useful thing in this tutorial.
+Serving parity is not a drift test and the distinction gives a great deal of insight.
 
 > [!IMPORTANT]
 > **🛑 YOUR TURN**
@@ -423,10 +422,11 @@ from *training*. Nothing in three months of logs contains the number 256. That n
 in exactly one place — the training profile — and without that file this bug is invisible
 forever.
 
-This is **training-serving skew**: not the world changing, but *you* changing something and
-the model not being told. It is one of the most common causes of production model failures,
-and the reason feature stores exist — one feature definition, computed once, used by both
-the training and the serving path, so the two cannot disagree.
+This is **training-serving skew**: the world around you isn't arbitrarily changing, 
+*you* are changing something in your pipeline and the model isn't being made aware.
+It is one of the most common causes of production model failures, and the reason feature 
+stores exist; we want one feature definition, computed once, used by both the training and 
+the serving path, so the two cannot disagree.
 
 > [!TIP]
 > **Valid values can still be wrong for the model.** `resize_px=224` is a perfectly valid
@@ -576,7 +576,7 @@ No labels were involved in producing that table. It was visible within days of t
 launching — and Step 8 will show you that segmented accuracy could not confirm it for three
 more weeks.
 
-This is confidence-based performance estimation (NannyML's CBPE is the best-known tool for
+This is confidence-based performance estimation (NannyML's CBPE is a well-known tool for
 it), stripped to about fifteen lines of pandas: use the model's own confidence distribution
 as an early proxy for performance instead of waiting for ground truth.
 
@@ -584,7 +584,7 @@ as an early proxy for performance instead of waiting for ground truth.
 > **A cheap secondary signal.** Confidence drift can prompt an investigation, but cannot
 > establish a performance drop on its own. Confidence is a proxy, and a badly
 > calibrated model gives you a confident, wrong proxy. It is a trigger to investigate, never
-> a number to report. The defensible use is exactly what you just did: compare segments
+> a number to report. The best way to use confidence is exactly what you just did: compare segments
 > against each other at the same moment, where miscalibration is at least a shared bias.
 
 ## 8. Replay: how early could you have known?
