@@ -7,9 +7,9 @@ every offline test. It is now getting a third of its predictions wrong, and nobo
 why. Your job is to find out — and then to build the monitor that would have caught it
 weeks earlier.
 
-In the lecture you worked four incidents from the outside, with the evidence handed to you
-one slide at a time. Today you are inside one. The log is on your disk, the probes are
-empty, and the protocol is the same:
+The lecture discussed several production failures and the checks that could detect them. In this tutorial, you will investigate a failure using prediction logs and monitoring code.
+
+We will use five steps: examine the evidence, identify where performance is worse, implement checks, decide how to respond, and test when the checks would have detected the problems.
 
 ```
 OBSERVE  →  LOCALIZE  →  INSTRUMENT  →  DECIDE  →  VERIFY
@@ -22,12 +22,12 @@ OBSERVE  →  LOCALIZE  →  INSTRUMENT  →  DECIDE  →  VERIFY
 Four monitoring probes, wired into a small CLI, running against 90 days of prediction
 events from a deployed model:
 
-| Probe | Question it answers | Boundary (lecture) |
-|---|---|---|
-| `check_data_quality` | Are the inputs broken before the model even runs? | Input |
-| `check_feature_drift` | Has the distribution moved away from the reference window? | Input / Model |
-| `check_serving_parity` | Does production match how the model was trained? | Serving |
-| `check_performance` | Is the model's judgment actually degrading? | Model / Outcome |
+| Probe                  | Question it answers                                        | Where it looks  |
+| ---------------------- | ---------------------------------------------------------- | --------------- |
+| `check_data_quality`   | Are the inputs broken before the model even runs?          | Input           |
+| `check_feature_drift`  | Has the distribution moved away from the reference window? | Input / Model   |
+| `check_serving_parity` | Does production match how the model was trained?           | Serving         |
+| `check_performance`    | Is the model's judgment actually degrading?                | Model / Outcome |
 
 By the end you will have replayed all 90 days through your own probes and found the exact
 date each failure became visible. There is more than one failure.
@@ -40,7 +40,7 @@ command in this tutorial runs in under three seconds.
 - Why "accuracy is down" is a feeling, not a finding — and how to turn it into one.
 - How to evaluate honestly when labels are sparse and late (the inner-join trap, in pandas).
 - The difference between **drift** (the world changed) and **skew** (you changed something),
-  and why no distribution test can see the second one.
+and why no distribution test can see the second one.
 - Why an alert fires only after sustained evidence, and what "critical" should mean.
 - How to develop a Python tool **inside a container** with your editor on the outside.
 
@@ -70,12 +70,14 @@ It covers everything this tutorial assumes: VS Code, Git, Docker Desktop, and `u
 | ▶️ | 8. [Replay: how early could you have known?](#8-replay-how-early-could-you-have-known) | VERIFY | the failure → signal table, filled in |
 | ▶️ | 9. [Wire it into your own project](#9-wire-it-into-your-own-project) | DECIDE | — |
 
-> [!WARNING]
-> **Steps 3–6 do not work if you only read them.** Each one asks you to replace a
-> `return []` in `monitor/probes.py` and run the monitor before you continue. The expected
-> output is hidden behind a *"what you should see"* toggle in each step — open it **after**
-> your own probe fires, not before. If you reach Step 8 without having written four
-> functions, `replay` will print nothing and the ending lands flat.
+> [!WARNING]  
+> **You must write code in Steps 3–6.** In each step, replace `return []` in the corresponding function in `monitor/probes.py`. Run the monitor before continuing.
+>
+> Each step includes a collapsed section titled **“What you should see.”** After your check produces a finding, click the title to view the expected output and compare it with your result.
+>
+> Complete all four functions before Step 8. Otherwise, `replay` will produce no output.  
+>
+> **Note:** On GitHub, click **“What you should see”** to expand the expected output. In Cursor, the output may already be visible. Run your check before reading it.
 
 ---
 
@@ -87,21 +89,9 @@ It covers everything this tutorial assumes: VS Code, Git, Docker Desktop, and `u
 > **92%** when we launched in August. last 28 days it's **68%**. offline eval still says
 > 93%. nobody changed the model. what happened?
 >
-> **@you:** …
-
-**Before you run anything, write down your guess.** One sentence, in a comment at the top of
-`monitor/probes.py`. You watched a fraud model lose money while every dashboard stayed
-green. You watched a camera report `NORMAL, 0.91` at a frozen screen. You have a prior.
-Commit to it.
-
-> [!TIP]
-> **Commit before the next slide.** The lecture made you pick A, B, C or D before it showed
-> you any evidence, and it did that for a reason: the most expensive habit in production ML
-> is forming a diagnosis *while* reading the dashboard, because you will find evidence for
-> whatever you already suspect. A guess written down first is the only one that can turn
-> out to be wrong — and finding out it was wrong is the point.
-
-Keep your guess. Step 8 asks you to score it.
+> **@you:** …  
+>
+> **Before you run anything, write down a possible cause.** Add one sentence in a comment at the top of `monitor/probes.py`. For example, the input images may have changed, or production may use different preprocessing from training. You will compare your explanation with the evidence in Step 8. Commit to it.
 
 ## 1. Get the monitor running — in a container
 
@@ -141,12 +131,9 @@ probe results
   (all probes green)
 ```
 
-There it is. **Accuracy is 68% and every probe is green** — because every probe currently
-returns an empty list. This is not a contrived starting point; it is what most deployed
-models actually have. Logging is on, a dashboard exists, and nothing in it is watching.
+ **Accuracy is 68%, but the monitor reports no problems.** The four functions in `monitor/probes.py` have not been implemented. Each currently returns an empty list (`return []`), which the monitor interprets as no findings.
 
-> *A green dashboard says its checks passed. Production evaluation asks whether you checked
-> the right thing.* — last slide of the lecture. Today you build the right things.
+> The green result does not mean the model is performing well. It means the checks are not doing anything yet. In Steps 3–6, you will implement these functions so the monitor can detect and report problems in the logged data.
 
 ### How the development loop works
 
@@ -161,7 +148,7 @@ owns the files.
 > [!TIP]
 > **🤔 One question to answer before you move on.** The `Dockerfile` puts the virtual
 > environment at `/home/app/.venv`, not at `/app/.venv` where `uv` would normally put it.
-> Why? *Hint: what is sitting on top of `/app` while the container runs?* If you can answer
+> Why? *Hint: what is sitting on top of* `/app` *while the container runs?* If you can answer
 > that, you understand bind mounts. (The answer is in the Troubleshooting table at the end.)
 
 > [!NOTE]
@@ -169,25 +156,11 @@ owns the files.
 > see `the input device is not a TTY`, prefix with `winpty`. Both gotchas are explained in
 > the [Mega Pipeline README](https://github.com/dlops-io/mega-pipeline#notes-for-running-on-windows).
 
-<details>
-<summary><b>No Docker on this machine?</b> Run it with <code>uv</code> directly.</summary>
-
-```bash
-uv sync
-source .venv/bin/activate        # Windows (Git Bash): source .venv/Scripts/activate
-python -m monitor.cli check
-```
-
-Every command after this point is identical. You lose nothing today — but your Milestone 3
-monitor will run in a container, so come back and do it the container way when you can.
-
-</details>
-
 ## 2. Look at what you actually have
 
 Two files matter.
 
-**`data/production_log.csv`** — one row per prediction the deployed model served, 12,322 of
+`data/production_log.csv` — one row per prediction the deployed model served, 12,322 of
 them over 90 days:
 
 ```
@@ -203,15 +176,13 @@ predicted class, confidence, and latency. When ground truth becomes available, t
 confirmed label and its arrival time are recorded. These fields support monitoring of
 data quality, feature drift, preprocessing consistency, and predictive performance.
 
-This is the lecture's `prediction_event` and `outcome_event` in one table, joined on
-`event_id`. Notice the last two columns: not just *what* the true label was, but *when* it
-arrived.
+Each row records a prediction and, when available, its confirmed label. `event_id` identifies the prediction. `confirmed_label` records the correct answer, and `label_ts` records when that answer became available.
 
-**`reference/training_profile.json`** — what was true when the model was trained: the
-preprocessing config, per-feature mean / std / null rate, the label space, and the offline
-metrics it shipped with. Twenty lines of JSON, written once at deploy time. Remember it.
+The arrival time matters because labels are delayed. When evaluating performance at a past date, use only labels that had arrived by that date.
 
-Now the part that makes production evaluation hard. Run this:
+`reference/training_profile.json` stores the model’s preprocessing settings, feature statistics (mean, standard deviation, and null rate), supported labels, and offline evaluation metrics. You will use it to check whether production matches the training setup.
+
+Run this command to check whether enough labels are available to evaluate accuracy and how delayed they are. It counts predictions, counts confirmed labels, and calculates the median time between a prediction and its label arriving.
 
 ```bash
 python -c "
@@ -229,21 +200,16 @@ with confirmed label   3663
 median label delay     11 days 11:07:05
 ```
 
-**Only 30% of predictions ever get a label, and those arrive 11 days late.** You are being
-asked to detect a failure using data where the answer key is mostly missing and always
-stale. In the lecture, chargebacks took 15–45 days. Same problem, smaller numbers.
+**Only 30% of predictions ever get a label, and those arrive 11 days late.** You are being  
+asked to detect a failure using data where the answer key is mostly missing and always  
+stale.  
 
-> [!TIP]
-> **The inner-join trap, in pandas.** Remember the query that said v8 was fine? It joined
-> predictions to outcomes and silently dropped every prediction whose label hadn't arrived.
-> This repo has the same trap in a different shape. Look at `labels_known_by(df, as_of)` in
-> `monitor/core.py`: it keeps only rows whose `label_ts` had *already happened* by the as-of
-> date. Every accuracy number in this repo goes through it.
+> [!TIP]  
+> **Use only labels available at the evaluation date.**
 >
-> Without it, when you replay September in Step 8 you would be grading September's
-> predictions with labels that arrived in October — labels from the future. The replay would
-> look brilliant and prove nothing. Same discipline as the lecture's label-complete cohort:
-> **only evaluate what you could actually have known at the time.**
+> `labels_known_by(df, as_of)` in `monitor/core.py` selects predictions whose confirmed labels had arrived by `as_of`. Every accuracy calculation in this repository uses this function.
+>
+> For example, when replaying September, a label that arrived in October must be excluded—even if it belongs to a September prediction. Including it would make the monitor appear to detect a problem earlier than it could have.
 
 Two reference points, for two different questions:
 
@@ -254,7 +220,7 @@ Two reference points, for two different questions:
 
 Those are not the same question, and Step 5 is where the difference bites.
 
-**Before Step 3 — open `monitor/core.py` and skim four things.** You never edit this file, but
+**Before Step 3 — open** `monitor/core.py` **and skim four things.** You never edit this file, but
 every probe you're about to write is built out of it, so five minutes here saves you twenty
 later:
 
@@ -296,15 +262,16 @@ thresholds — those are yours to defend.
 > you expect? Write the number down.
 >
 > **Then run:**
+>
 > ```bash
 > python -m monitor.cli check
 > pytest tests/test_probes_contract.py
 > ```
+>
 > You are done with this step when the report contains exactly one finding and the contract
 > tests pass. Then open the toggle below and compare.
 
-<details>
-<summary><b>▶ What you should see</b> (open after your probe fires)</summary>
+**▶ What you should see** (open after your probe fires)
 
 ```
 !  [Data Quality     ] brightness    null rate 4.8% (training baseline 0.4%)
@@ -313,8 +280,6 @@ thresholds — those are yours to defend.
 If you got more than one finding, your threshold is too tight — check what it's saying about
 features that were *already* null in training. If you got none, it's too loose, or you're
 comparing against the wrong number.
-
-</details>
 
 One feature is going null twelve times more often than it did in training. Nothing has
 errored. No exception was ever raised, no request failed, and the model happily produced a
@@ -341,12 +306,12 @@ points? Do the arithmetic in your head. It is one finding, not the answer.
 A quick word on the two statistics you are about to use, both already written in `core.py`:
 
 - **KS test** (`ks_statistic`), for continuous columns. Stack the two samples' cumulative
-  distributions on top of each other; `D` is the biggest vertical gap between them. 0 means
-  identical, 1 means no overlap. `ks_critical(n, m)` tells you the largest `D` that chance
-  alone would produce at your sample sizes.
+distributions on top of each other; `D` is the biggest vertical gap between them. 0 means
+identical, 1 means no overlap. `ks_critical(n, m)` tells you the largest `D` that chance
+alone would produce at your sample sizes.
 - **PSI** (`psi`), for categorical columns. KS needs an ordering ("less than") and `region`
-  has none, so PSI compares the category *mix* instead. Rule of thumb: above 0.25 is a major
-  shift.
+has none, so PSI compares the category *mix* instead. Rule of thumb: above 0.25 is a major
+shift.
 
 > [!IMPORTANT]
 > **🛑 YOUR TURN**
@@ -365,14 +330,15 @@ A quick word on the two statistics you are about to use, both already written in
 > value? Which one do you think will move the most?
 >
 > **Then run:**
+>
 > ```bash
 > python -m monitor.cli check
 > ```
+>
 > Expect around five findings. Before you open the toggle: three of them are traps, so read
 > your own output first and see if you can spot which.
 
-<details>
-<summary><b>▶ What you should see</b> (open after your probe fires)</summary>
+**▶ What you should see** (open after your probe fires)
 
 ```
 !! [Data Quality     ] blur_score      KS D=0.263 (D_crit=0.059, p=1.6e-47)
@@ -386,26 +352,24 @@ Getting a dozen findings instead of five? You're firing on statistical significa
 see the third tip below. Getting `model_version` as a drift finding? Check what's in
 `CATEGORICAL` versus `SEGMENTS` in `core.py`, and why.
 
-</details>
-
 Five alarms. Read them carefully, because three of them are traps.
 
 > [!TIP]
-> **`latency_ms` drifted — and got *faster*.** D=0.32 with a p-value of 1.7e-70 is a
+> `latency_ms` **drifted — and got *faster*.** D=0.32 with a p-value of 1.7e-70 is a
 > screaming statistical result about an unambiguously *good* change. A KS test detects
 > difference; it has no idea which direction is bad. If you page someone on "significant
 > drift" alone, this is the alert that teaches your team to ignore your alerts. Direction
 > and impact are your job, not the test's.
 
 > [!TIP]
-> **`confidence` is the model's output, not its input.** It is in `CONTINUOUS` deliberately.
+> `confidence` **is the model's output, not its input.** It is in `CONTINUOUS` deliberately.
 > When input features look stable and the output distribution moves, the world hasn't
 > changed shape — the model's *relationship* to the world has. That is concept drift, and
 > this is the cheapest way to see it: you already log confidence, and it needs no ground
 > truth at all. Hold that thought until Step 7.
 
 > [!TIP]
-> **`p=2.3e-218` is not 218 times more urgent than `p=0.04`.** With ~950 events per window
+> `p=2.3e-218` **is not 218 times more urgent than** `p=0.04`**.** With ~950 events per window
 > against a 4,400-event reference, `D_crit` is 0.059 — so a 6% distributional wobble is
 > "significant". Significance gets cheaper the more traffic you have, which is why your
 > probe wants a floor on `D` as well as the critical value. And it is why the lecture's
@@ -428,28 +392,29 @@ This one is not a drift test, and the distinction is the most useful thing in th
 >
 > **The job:** two comparisons, both against `reference/training_profile.json` rather than
 > against any window of production.
+>
 > 1. `win["resize_px"]` versus `profile["preprocessing"]["resize_px"]`. Any traffic served at
+>
 >    a size the model wasn't trained at is a bug — `critical` even at small volume.
 > 2. Each feature's mean in `win` versus the training mean in `profile["features"]`, measured
+>
 >    in units of the training std.
 >
 > **🤔 Predict before you run:** you already ran a drift test over these same features in
 > Step 4. Do you expect this probe to find anything *new*? Commit to yes or no.
 >
 > **Then run:**
+>
 > ```bash
 > python -m monitor.cli check
 > ```
 
-<details>
-<summary><b>▶ What you should see</b> (open after your probe fires)</summary>
+**▶ What you should see** (open after your probe fires)
 
 ```
 !! [Model Performance] preprocessing.resize_px   serving at 224px, model trained at 256px (100% of traffic)
 !  [Data Quality     ] blur_score                mean 0.640 is 1.0σ from the training mean 0.720
 ```
-
-</details>
 
 **Every single request is being preprocessed differently from how the model was trained.**
 
@@ -476,12 +441,14 @@ the training and the serving path, so the two cannot disagree.
 > [!TIP]
 > **Find the day it started.** `--as-of` re-runs any check as it would have looked on a past
 > date:
+>
 > ```bash
 > python -m monitor.cli check --as-of 2026-09-24   # no resize_px finding
 > python -m monitor.cli check --as-of 2026-09-26   # serving at 224px (32% of traffic)
 > ```
+>
 > Narrow it down. Then look at which `model_version` the log carries either side of that
-> date. A parity break with a hard start date and a version boundary is a deploy, not a
+> date. A parity break with a hard start date and a new version is a deploy, not a
 > drift — and it means someone's change is sitting in a commit you can read.
 >
 > The share is worth noticing too: 32% of traffic, climbing to 100%. Your probe caught this
@@ -506,13 +473,17 @@ the training and the serving path, so the two cannot disagree.
 >
 > **The job:** overall accuracy first, then per segment. This is the lecture's LOCALIZE step —
 > geography, then merchant age — done in code.
+>
 > 1. `accuracy(labeled)` against `profile["offline_metrics"]["accuracy"]`.
 > 2. Then again per segment: `segment_table(labeled, by)` for each `by` in `SEGMENTS`, firing
+>
 >    on the worst slice. Careful what you compare the slice *against* — the docstring warns
->    you about the trap, and it's a real one.
+>          you about the trap, and it's a real one.
 > 3. Handle the empty case. Early in a window no labels have arrived at all, and an `info`
+>
 >    finding saying so is more honest than green.
 > 4. Stretch, and it's the best finding in the tutorial: what does it mean if
+>
 >    `labeled["confirmed_label"]` contains something that isn't in `profile["label_space"]`?
 >
 > `labeled` only holds events whose label had *already arrived* — see `labels_known_by()`
@@ -521,15 +492,16 @@ the training and the serving path, so the two cannot disagree.
 > **🤔 Predict before you run:** which segment do you expect to be worst, and by how much?
 >
 > **Then run:**
+>
 > ```bash
 > python -m monitor.cli check
 > pytest
 > ```
+>
 > That's all four probes live, and the whole suite should be green. This is the full picture
 > of the incident.
 
-<details>
-<summary><b>▶ What you should see</b> (open after your probe fires)</summary>
+**▶ What you should see** (open after your probe fires)
 
 ```
 !! [Data Quality     ] label_space    4.6% of confirmed labels are outside the training label space (danablu, gammelost, herrgard, vasterbotten)
@@ -540,8 +512,6 @@ the training and the serving path, so the two cannot disagree.
 
 One near-duplicate finding per region (`region=eu`, `region=na`) means you compared each
 slice against the offline number instead of against overall — see the tip below.
-
-</details>
 
 Now compare the aggregate with the slices:
 
@@ -718,16 +688,20 @@ window of logged prediction events, compares it to a stored reference, and retur
 That works because the system logs the right things in the first place. Copy that part:
 
 1. **Log one row per prediction**, not per request: inputs (or their summary statistics),
+
    the prediction, the confidence, the model version, the serving config, and an ID you can
-   join a later label onto. *The join keys make evaluation possible.*
+         join a later label onto. *The join keys make evaluation possible.*
 2. **Store a reference** the day you deploy. `reference/training_profile.json` is 20 lines
+
    of JSON and it is the only reason Step 5 was possible. A model shipped without a recorded
-   training profile cannot be checked for skew, ever.
+         training profile cannot be checked for skew, ever.
 3. **Write labels back asynchronously**, with the timestamp at which they *arrived* — not
+
    just the timestamp of the prediction. This is the field most teams skip. Without it every
-   backtest you run is cheating under the hood.
+         backtest you run is cheating under the hood.
 4. **Run the probes on a schedule** and require consecutive windows before alerting.
 5. **Route alerts to a human with a runbook**, not to an automatic rollback. Pre-commit the
+
    threshold, the action, the owner and the scope — that is DECIDE.
 
 The lecture drew two paths. This repo has both, in miniature:
@@ -751,16 +725,16 @@ The lecture drew two paths. This repo has both, in miniature:
 Worth knowing, so you don't ship these assumptions:
 
 - **Features are pre-computed in the log.** Real drift monitoring reads from a feature store
-  or recomputes from raw inputs, and that recomputation is itself a common skew bug.
+or recomputes from raw inputs, and that recomputation is itself a common skew bug.
 - **One model, one endpoint.** With shadow or canary traffic every probe needs to be
-  segmented by variant, or you average the champion and the challenger together and learn
-  nothing about either.
+segmented by variant, or you average the champion and the challenger together and learn
+nothing about either.
 - **Labels are correct.** User-confirmed labels are noisy and self-selecting: users who
-  bother to correct the model are not a random sample of users. This is the lecture's
-  feedback path — *what becomes future truth?* — and it needs provenance.
+bother to correct the model are not a random sample of users. This is the lecture's
+feedback path — *what becomes future truth?* — and it needs provenance.
 - **Retraining is out of scope.** A retraining policy — a threshold sustained over
-  consecutive windows, a champion/challenger validation before promotion — is the natural
-  next step once your probes are trustworthy.
+consecutive windows, a champion/challenger validation before promotion — is the natural
+next step once your probes are trustworthy.
 
 ## Troubleshooting
 

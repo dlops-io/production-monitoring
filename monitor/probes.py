@@ -1,4 +1,5 @@
 """The four probes. This is the only file you edit.
+I think Patrick broke everything !!!!
 
 Every probe takes a slice of the production log and returns a list of `Finding`s — zero
 findings means "green". Right now every probe returns nothing, which is why the monitor

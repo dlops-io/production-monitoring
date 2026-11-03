@@ -53,7 +53,7 @@ class Finding:
 
     `layer` says which part of the system the finding is about: the inputs ("Data
     Quality"), the model's behaviour ("Model Performance"), or the service around it
-    ("System Health"). The lecture's boundary table calls these Input, Model and Serving.
+    ("System Health"). The lecture groups these as Input, Model and Serving.
     """
 
     probe: str
